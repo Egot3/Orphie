@@ -1,0 +1,12 @@
+[service]
+name = "newsGetter"
+port = "307"
+
+[[service.endpoints]]
+path = "https://info.cern.ch/hypertext/WWW/TheProject.html"
+method = "GET"
+timeout = "20s"
+enabled = true
+postID = 0
+updateLogPath = "test.log"
+lastUpdate = "2025-10-27T17:30:00+03:00"

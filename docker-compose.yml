@@ -1,0 +1,8 @@
+services:
+  app:
+    image: orphie:latest
+    build: .
+    ports:
+      - "307:307"
+    volumes:
+      - ./config.toml:/config.toml:rw
