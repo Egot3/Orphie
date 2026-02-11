@@ -18,7 +18,7 @@ jobs:
             - name: re-naming conventions
               run: |
                 REPO_NAME="${GITHUB_REPOSITORY#*/}"
-                REPO_LOWERCASE="${GHCR_REPO,,}"
+                REPO_LOWERCASE="${REPO_NAME,,}"
                 GITHUB_OWNER="${GITHUB_REPOSITORY_OWNER,,}"
                 echo "GHCR_REPO=$REPO_LOWERCASE" >> $GITHUB_ENV
                 echo "GHCR_OWNER=$GITHUB_OWNER" >> $GITHUB_ENV
