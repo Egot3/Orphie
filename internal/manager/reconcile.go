@@ -5,22 +5,28 @@ import (
 	"log"
 	"newsgetter/internal/types"
 	"newsgetter/internal/utils"
+	"os"
 	"sync"
 	"time"
+
+	"github.com/BurntSushi/toml"
 )
 
 type WorkerManager struct {
 	cancelFuncs map[string]context.CancelFunc
 	mu          sync.Mutex
+	cfgMgr      *Manager
 }
 
-func NewWorkerManager() *WorkerManager {
+func NewWorkerManager(cfgMgr *Manager) *WorkerManager {
 	return &WorkerManager{
 		cancelFuncs: make(map[string]context.CancelFunc),
+		cfgMgr:      cfgMgr,
 	}
 }
 
 func (wm *WorkerManager) Reconcile(oldCfg, newCfg *types.ServiceStruct) {
+	log.Println("Started reconciling")
 	wm.mu.Lock()
 	defer wm.mu.Unlock()
 
@@ -28,6 +34,10 @@ func (wm *WorkerManager) Reconcile(oldCfg, newCfg *types.ServiceStruct) {
 
 	newEndpoints := make(map[string]types.Endpoint)
 	for _, ep := range newCfg.Endpoints {
+		err := ep.ParsePathVariables()
+		if err != nil {
+			log.Printf("Couldn't parse path %v", ep.Path)
+		}
 		key := ep.Path + "|" + ep.Method
 		newEndpoints[key] = ep
 	}
@@ -97,11 +107,21 @@ func (wm *WorkerManager) runEndpoint(c context.Context, ep types.Endpoint) {
 			return
 		case <-ticker.C:
 			log.Println("making a request to ", ep.Path)
-			resp, err := utils.MakeRequest(ep.Method, ep.Path)
+			resp, status, err := utils.MakeRequest(ep.Method, ep.Path)
 			if err != nil {
 				log.Printf("Error in request %v %v : %v", ep.Method, ep.Path, err)
 			} else if resp != nil {
 				log.Println(*resp)
+			}
+			if len(ep.Params) > 0 && status == 200 {
+				vars := ep.GetParsedVariables()
+				for _, v := range vars { //.
+					log.Println("Changing variable")
+					oldVariable := ep.Params[v].(int)
+					ep.Params[v] = oldVariable + 1
+				}
+				f, _ := os.Create("config.toml")
+				toml.NewEncoder(f).Encode(wm.cfgMgr.config)
 			}
 		}
 	}

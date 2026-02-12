@@ -14,7 +14,7 @@ type Manager struct {
 	path     string
 	watcher  *fsnotify.Watcher
 	done     chan struct{}
-	onReload func(old, new *types.ServiceStruct)
+	OnReload func(old, new *types.ServiceStruct)
 }
 
 func NewManager(path string, onReload func(old, new *types.ServiceStruct)) (*Manager, error) {
@@ -26,14 +26,12 @@ func NewManager(path string, onReload func(old, new *types.ServiceStruct)) (*Man
 		path:     path,
 		watcher:  watcher,
 		done:     make(chan struct{}),
-		onReload: onReload,
+		OnReload: onReload,
 	}
 
 	m.config.Store(&types.ServiceStruct{})
 
-	_ = m.load()
-
-	if err := m.load(); err != nil {
+	if err := m.Load(); err != nil {
 		return nil, err
 	}
 	if err := watcher.Add(path); err != nil {
@@ -44,17 +42,18 @@ func NewManager(path string, onReload func(old, new *types.ServiceStruct)) (*Man
 	return m, nil
 }
 
-func (m *Manager) load() error {
+func (m *Manager) Load() error {
 	var cfg types.Config
-	if _, err := toml.DecodeFile(m.path, &cfg); err != nil {
+	_, err := toml.DecodeFile(m.path, &cfg)
+	if err != nil {
 		return err
 	}
 
 	oldCfg := m.Get()
 	m.config.Store(&cfg.Service)
 
-	if m.onReload != nil {
-		m.onReload(oldCfg, &cfg.Service)
+	if m.OnReload != nil {
+		m.OnReload(oldCfg, &cfg.Service)
 	}
 	return nil
 }
@@ -67,7 +66,7 @@ func (m *Manager) watch() {
 				return
 			}
 			if event.Op&(fsnotify.Write|fsnotify.Create|fsnotify.Chmod) != 0 {
-				if err := m.load(); err != nil {
+				if err := m.Load(); err != nil {
 					log.Printf("failed to reload config: %v", err)
 				} else {
 					log.Println("Config reloaded!")
@@ -87,7 +86,7 @@ func (m *Manager) watch() {
 func (m *Manager) Get() *types.ServiceStruct {
 	serv, ok := m.config.Load().(*types.ServiceStruct)
 	if !ok {
-		log.Println("couldn't load a config")
+		log.Println("couldn't Load a config")
 		return nil
 	}
 	return serv

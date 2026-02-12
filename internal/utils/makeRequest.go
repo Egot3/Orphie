@@ -8,7 +8,7 @@ import (
 	"time"
 )
 
-func MakeRequest(method, path string) (*string, error) {
+func MakeRequest(method, path string) (*string, int, error) {
 	client := &http.Client{Timeout: 5 * time.Second}
 
 	before, after := middleware.TraceTripperMiddleware()
@@ -17,7 +17,7 @@ func MakeRequest(method, path string) (*string, error) {
 	req, _ := http.NewRequest(method, path, nil)
 	resp, err := client.Do(req)
 	if err != nil {
-		return nil, err
+		return nil, 400, err
 	}
 	defer resp.Body.Close()
 
@@ -28,5 +28,5 @@ func MakeRequest(method, path string) (*string, error) {
 
 	bodyString := string(bodyBytes)
 
-	return &bodyString, nil
+	return &bodyString, resp.StatusCode, nil
 }
