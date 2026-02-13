@@ -36,16 +36,16 @@ func (wm *WorkerManager) Reconcile(oldCfg, newCfg *types.ServiceStruct) {
 	for _, ep := range newCfg.Endpoints {
 		err := ep.ParsePathVariables()
 		if err != nil {
-			log.Printf("Couldn't parse path %v", ep.Path)
+			log.Printf("Couldn't parse path %v", ep.ParsedPath)
 		}
-		key := ep.Path + "|" + ep.Method
+		key := ep.ParsedPath + "|" + ep.Method
 		newEndpoints[key] = ep
 	}
 
 	oldEndpoints := make(map[string]types.Endpoint)
 	if oldCfg != nil {
 		for _, ep := range oldCfg.Endpoints {
-			key := ep.Path + "|" + ep.Method
+			key := ep.ParsedPath + "|" + ep.Method
 			oldEndpoints[key] = ep
 		}
 	}
@@ -68,7 +68,7 @@ func (wm *WorkerManager) Reconcile(oldCfg, newCfg *types.ServiceStruct) {
 			log.Printf("Stopped endpoint %s (dis)", key)
 			continue
 		}
-		if oldEp.Enabled && (oldEp.Path != newEp.Path ||
+		if oldEp.Enabled && (oldEp.ParsedPath != newEp.ParsedPath ||
 			oldEp.Method != newEp.Method ||
 			oldEp.Timeout != newEp.Timeout) {
 			cancel()
@@ -85,7 +85,7 @@ func (wm *WorkerManager) Reconcile(oldCfg, newCfg *types.ServiceStruct) {
 			c, cancel := context.WithCancel(context.Background())
 			wm.cancelFuncs[key] = cancel
 			go wm.runEndpoint(c, ep)
-			log.Printf("Started endpoint %s %s", ep.Method, ep.Path)
+			log.Printf("Started endpoint %s %s", ep.Method, ep.ParsedPath)
 		}
 	}
 }
@@ -93,7 +93,7 @@ func (wm *WorkerManager) Reconcile(oldCfg, newCfg *types.ServiceStruct) {
 func (wm *WorkerManager) runEndpoint(c context.Context, ep types.Endpoint) {
 	interval, err := time.ParseDuration(ep.Timeout)
 	if err != nil {
-		log.Printf("Endpoint %s: bad timeout %s, using 30m default", ep.Path, ep.Timeout)
+		log.Printf("Endpoint %s: bad timeout %s, using 30m default", ep.ParsedPath, ep.Timeout)
 		interval = 30 * time.Minute
 	}
 
@@ -103,25 +103,25 @@ func (wm *WorkerManager) runEndpoint(c context.Context, ep types.Endpoint) {
 	for {
 		select {
 		case <-c.Done():
-			log.Printf("Endpoint %s is shutting down", ep.Path)
+			log.Printf("Endpoint %s is shutting down", ep.ParsedPath)
 			return
 		case <-ticker.C:
-			log.Println("making a request to ", ep.Path)
-			resp, status, err := utils.MakeRequest(ep.Method, ep.Path)
+			log.Println("making a request to ", ep.ParsedPath)
+			_, status, err := utils.MakeRequest(ep.Method, ep.ParsedPath)
 			if err != nil {
-				log.Printf("Error in request %v %v : %v", ep.Method, ep.Path, err)
-			} else if resp != nil {
-				log.Println(*resp)
-			}
+				log.Printf("Error in request %v %v : %v", ep.Method, ep.ParsedPath, err)
+			} //else if resp != nil {
+			// 	log.Println(*resp)
+			// }
 			if len(ep.Params) > 0 && status == 200 {
-				vars := ep.GetParsedVariables()
-				for _, v := range vars { //.
-					log.Println("Changing variable")
-					oldVariable := ep.Params[v].(int)
-					ep.Params[v] = oldVariable + 1
-				}
+
+				log.Println(ep.GetParsedVariables()[0])
+				value := int(ep.Params[ep.GetParsedVariables()[0]].(int64))
+				err = types.SwitchParams(wm.cfgMgr.Get(), ep.Method+"|"+ep.ParsedPath, ep.GetParsedVariables()[0], value)
+
 				f, _ := os.Create("config.toml")
-				toml.NewEncoder(f).Encode(wm.cfgMgr.config)
+				toml.NewEncoder(f).Encode(wm.cfgMgr.config.Load())
+				defer f.Close()
 			}
 		}
 	}

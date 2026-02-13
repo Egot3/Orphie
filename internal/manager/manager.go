@@ -29,7 +29,7 @@ func NewManager(path string, onReload func(old, new *types.ServiceStruct)) (*Man
 		OnReload: onReload,
 	}
 
-	m.config.Store(&types.ServiceStruct{})
+	m.config.Store(&types.Config{})
 
 	if err := m.Load(); err != nil {
 		return nil, err
@@ -49,11 +49,29 @@ func (m *Manager) Load() error {
 		return err
 	}
 
+	// var rawCfg map[string]interface{}
+	// _, err = toml.DecodeFile(m.path, &rawCfg)
+	// if err != nil {
+	// 	return err
+	// }
+
+	// service := rawCfg["service"].(map[string]interface{})
+	// endpoints := service["endpoints"].([]map[string]interface{})
+
+	// for i := range cfg.Service.Endpoints {
+	// 	cfg.Service.Endpoints[i].Params = make(map[string]interface{})
+	// 	for key, val := range endpoints[i] {
+	// 		if key != "path" && key != "method" && key != "timeout" && key != "enabled" && key != "updateLogPath" && key != "lastUpdate" {
+	// 			cfg.Service.Endpoints[i].Params[key] = val
+	// 		}
+	// 	}
+	// } <- mental illness
+
 	oldCfg := m.Get()
-	m.config.Store(&cfg.Service)
+	m.config.Store(&cfg)
 
 	if m.OnReload != nil {
-		m.OnReload(oldCfg, &cfg.Service)
+		m.OnReload(&oldCfg.Service, &cfg.Service)
 	}
 	return nil
 }
@@ -83,13 +101,13 @@ func (m *Manager) watch() {
 	}
 }
 
-func (m *Manager) Get() *types.ServiceStruct {
-	serv, ok := m.config.Load().(*types.ServiceStruct)
+func (m Manager) Get() *types.Config {
+	cfg, ok := m.config.Load().(*types.Config)
 	if !ok {
 		log.Println("couldn't Load a config")
 		return nil
 	}
-	return serv
+	return cfg
 }
 
 func (m *Manager) Stop() error {
