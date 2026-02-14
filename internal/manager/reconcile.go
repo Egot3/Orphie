@@ -3,8 +3,8 @@ package manager
 import (
 	"context"
 	"log"
+	"newsgetter/internal/request"
 	"newsgetter/internal/types"
-	"newsgetter/internal/utils"
 	"os"
 	"sync"
 	"time"
@@ -36,7 +36,7 @@ func (wm *WorkerManager) Reconcile(oldCfg, newCfg *types.ServiceStruct) {
 	for _, ep := range newCfg.Endpoints {
 		err := ep.ParsePathVariables()
 		if err != nil {
-			log.Printf("Couldn't parse path %v", ep.ParsedPath)
+			log.Printf("Couldn't parse path %v", ep.Path)
 		}
 		key := ep.ParsedPath + "|" + ep.Method
 		newEndpoints[key] = ep
@@ -84,6 +84,16 @@ func (wm *WorkerManager) Reconcile(oldCfg, newCfg *types.ServiceStruct) {
 		if _, running := wm.cancelFuncs[key]; !running {
 			c, cancel := context.WithCancel(context.Background())
 			wm.cancelFuncs[key] = cancel
+
+			if ep.BenchmarkPath != "" {
+				benchmarkResp, err := request.MakeRequest(ep.Method, ep.BenchmarkPath)
+				if err != nil {
+					log.Printf("Error in benchmark request: %v", err)
+				}
+				ep.BenchmarkResponse = *benchmarkResp
+				//log.Printf("%v", ep.BenchmarkResponse)
+			}
+
 			go wm.runEndpoint(c, ep)
 			log.Printf("Started endpoint %s %s", ep.Method, ep.ParsedPath)
 		}
@@ -107,20 +117,28 @@ func (wm *WorkerManager) runEndpoint(c context.Context, ep types.Endpoint) {
 			return
 		case <-ticker.C:
 			log.Println("making a request to ", ep.ParsedPath)
-			_, status, err := utils.MakeRequest(ep.Method, ep.ParsedPath)
+
+			resp, err := request.MakeRequest(ep.Method, ep.ParsedPath)
 			if err != nil {
 				log.Printf("Error in request %v %v : %v", ep.Method, ep.ParsedPath, err)
 			} //else if resp != nil {
 			// 	log.Println(*resp)
 			// }
-			if len(ep.Params) > 0 && status == 200 {
 
-				log.Println(ep.GetParsedVariables()[0])
+			log.Printf("%v", ep.BenchmarkResponse.Body == resp.Body)
+
+			if len(ep.Params) > 0 &&
+				resp.StatusCode == 200 &&
+				resp.Path == ep.ParsedPath &&
+				resp.Body != ep.BenchmarkResponse.Body {
+
 				value := int(ep.Params[ep.GetParsedVariables()[0]].(int64))
-				err = types.SwitchParams(wm.cfgMgr.Get(), ep.Method+"|"+ep.ParsedPath, ep.GetParsedVariables()[0], value)
+				currConf := *wm.cfgMgr.Get()
+
+				err = types.SwitchParams(&currConf, ep.Method+"|"+ep.ParsedPath, ep.GetParsedVariables()[0], value+1)
 
 				f, _ := os.Create("config.toml")
-				toml.NewEncoder(f).Encode(wm.cfgMgr.config.Load())
+				toml.NewEncoder(f).Encode(currConf)
 				defer f.Close()
 			}
 		}

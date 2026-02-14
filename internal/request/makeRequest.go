@@ -1,15 +1,17 @@
-package utils
+package request
 
 import (
 	"io"
 	"log"
 	"net/http"
+	"newsgetter/internal/client"
 	"newsgetter/internal/middleware"
+	"newsgetter/internal/types"
 	"time"
 )
 
-func MakeRequest(method, path string) (*string, int, error) {
-	client := &http.Client{Timeout: 5 * time.Second}
+func MakeRequest(method, path string) (*types.Response, error) {
+	client := client.NewClient(&http.Client{Timeout: 5 * time.Second})
 
 	before, after := middleware.TraceTripperMiddleware()
 	middleware.UseTripper(client, before, after)
@@ -17,7 +19,7 @@ func MakeRequest(method, path string) (*string, int, error) {
 	req, _ := http.NewRequest(method, path, nil)
 	resp, err := client.Do(req)
 	if err != nil {
-		return nil, 400, err
+		return nil, err
 	}
 	defer resp.Body.Close()
 
@@ -28,5 +30,10 @@ func MakeRequest(method, path string) (*string, int, error) {
 
 	bodyString := string(bodyBytes)
 
-	return &bodyString, resp.StatusCode, nil
+	return &types.Response{
+		Body:       bodyString,
+		Method:     resp.Request.Method,
+		Path:       resp.Request.URL.String(),
+		StatusCode: resp.StatusCode,
+	}, nil
 }

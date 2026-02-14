@@ -3,6 +3,7 @@ package types
 import (
 	"fmt"
 	"iter"
+	"log"
 )
 
 type Config struct {
@@ -24,7 +25,15 @@ func (cfg Config) GetSeq() iter.Seq[*Endpoint] {
 // Gives: Love and Trust, maybe a nil ptr
 func SwitchParams[V []string | int](cfg *Config, epsName, paramName string, value V) error {
 	for ep := range cfg.GetSeq() {
-		if epsName == (ep.Method + "|" + ep.Path) {
+
+		err := ep.ParsePathVariables()
+		if err != nil {
+			return err
+		}
+
+		log.Println("if cont: ", epsName, "2:", (ep.Method + "|" + ep.ParsedPath))
+
+		if epsName == (ep.Method + "|" + ep.ParsedPath) {
 			ep.Params[paramName] = value
 			return nil
 		}
