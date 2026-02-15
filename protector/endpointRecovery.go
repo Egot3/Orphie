@@ -1,0 +1,3 @@
+package protector
+
+func EndpointRecovery()

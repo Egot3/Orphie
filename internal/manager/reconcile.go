@@ -2,8 +2,9 @@ package manager
 
 import (
 	"context"
+	"fmt"
 	"log"
-	"newsgetter/internal/request"
+	"newsgetter/internal/reqresp"
 	"newsgetter/internal/types"
 	"os"
 	"sync"
@@ -86,12 +87,12 @@ func (wm *WorkerManager) Reconcile(oldCfg, newCfg *types.ServiceStruct) {
 			wm.cancelFuncs[key] = cancel
 
 			if ep.BenchmarkPath != "" {
-				benchmarkResp, err := request.MakeRequest(ep.Method, ep.BenchmarkPath)
+				benchmarkResp, err := reqresp.MakeRequest(ep.Method, ep.BenchmarkPath)
 				if err != nil {
 					log.Printf("Error in benchmark request: %v", err)
 				}
-				ep.BenchmarkResponse = *benchmarkResp
-				//log.Printf("%v", ep.BenchmarkResponse)
+				ep.BenchmarkResponseHash = benchmarkResp.Hash()
+				log.Printf("BMRH: %v", ep.BenchmarkResponseHash)
 			}
 
 			go wm.runEndpoint(c, ep)
@@ -103,7 +104,8 @@ func (wm *WorkerManager) Reconcile(oldCfg, newCfg *types.ServiceStruct) {
 func (wm *WorkerManager) runEndpoint(c context.Context, ep types.Endpoint) {
 	interval, err := time.ParseDuration(ep.Timeout)
 	if err != nil {
-		log.Printf("Endpoint %s: bad timeout %s, using 30m default", ep.ParsedPath, ep.Timeout)
+		log.Printf("Endpoint %s: bad timeout %s, using 30m default",
+			ep.ParsedPath, ep.Timeout)
 		interval = 30 * time.Minute
 	}
 
@@ -118,24 +120,28 @@ func (wm *WorkerManager) runEndpoint(c context.Context, ep types.Endpoint) {
 		case <-ticker.C:
 			log.Println("making a request to ", ep.ParsedPath)
 
-			resp, err := request.MakeRequest(ep.Method, ep.ParsedPath)
+			resp, err := reqresp.MakeRequest(ep.Method, ep.ParsedPath)
 			if err != nil {
-				log.Printf("Error in request %v %v : %v", ep.Method, ep.ParsedPath, err)
+				log.Printf("Error in request %v %v : %v",
+					ep.Method, ep.ParsedPath, err)
 			} //else if resp != nil {
 			// 	log.Println(*resp)
 			// }
 
-			log.Printf("%v", ep.BenchmarkResponse.Body == resp.Body)
+			respHash := resp.Hash()
+			fmt.Printf("respHash: %v\n", respHash)
 
 			if len(ep.Params) > 0 &&
 				resp.StatusCode == 200 &&
-				resp.Path == ep.ParsedPath &&
-				resp.Body != ep.BenchmarkResponse.Body {
+				respHash != ep.BenchmarkResponseHash {
 
 				value := int(ep.Params[ep.GetParsedVariables()[0]].(int64))
 				currConf := *wm.cfgMgr.Get()
 
-				err = types.SwitchParams(&currConf, ep.Method+"|"+ep.ParsedPath, ep.GetParsedVariables()[0], value+1)
+				err = types.SwitchParams(&currConf,
+					ep.Method+"|"+ep.ParsedPath,
+					ep.GetParsedVariables()[0],
+					value+1)
 
 				f, _ := os.Create("config.toml")
 				toml.NewEncoder(f).Encode(currConf)

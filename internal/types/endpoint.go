@@ -8,24 +8,36 @@ import (
 )
 
 type Endpoint struct {
-	Path          string    `toml:"path"`
-	ParsedPath    string    `toml:"-"`
-	BenchmarkPath string    `toml:"benchmarkPath,omitempty"` //<- completly normal code
+	Path          string `toml:"path,required"`
+	ParsedPath    string `toml:"-"`
+	BenchmarkPath string `toml:"benchmarkPath,omitempty"` //<- completly normal code
+	//HTMLOverPure  bool      `tom:"HTMLOverPure,omitempty"` <- second-lasting weakness
 	Method        string    `toml:"method"`
 	Timeout       string    `toml:"timeout"`
 	Enabled       bool      `toml:"enabled"`
-	UpdateLogPath string    `toml:"updateLogPath"`
+	ContentType   string    `toml:"contentType,omitempty"`
+	LookAfter     []string  `toml:"lookAfter,omitempty"`
+	UpdateLogPath string    `toml:"updateLogPath,omitempty"`
 	LastUpdate    time.Time `toml:"lastUpdate"`
 	//StandardPath  string    `toml:"standardPath,omitempty"` <-mental illness
 
-	BenchmarkResponse Response `toml:"-"`
+	BenchmarkResponseHash [32]uint8 `toml:"benchmarkResponseHash,omitempty"`
 
 	Params map[string]interface{} `toml:"params"`
 }
 
 func (e *Endpoint) ParsePathVariables() error {
 	e.ParsedPath = e.Path
-	byPart := strings.SplitSeq(e.Path, "/")
+
+	separators := map[rune]bool{
+		'/': true,
+		'&': true,
+		'=': true,
+	}
+	byPart := strings.FieldsFuncSeq(e.Path, func(r rune) bool {
+		return separators[r]
+	})
+
 	for subdirectory := range byPart {
 		if !strings.HasPrefix(subdirectory, ":") {
 			continue
@@ -45,7 +57,16 @@ func (e *Endpoint) ParsePathVariables() error {
 
 func (e Endpoint) GetParsedVariables() []string {
 	var vars []string
-	byPart := strings.SplitSeq(e.Path, "/")
+
+	separators := map[rune]bool{
+		'/': true,
+		'&': true,
+		'=': true,
+	}
+	byPart := strings.FieldsFuncSeq(e.Path, func(r rune) bool {
+		return separators[r]
+	})
+	//byPart := strings.SplitSeq(e.Path, "/")
 
 	for subdirectory := range byPart {
 		//log.Printf("subdir: %v\n", subdirectory)
