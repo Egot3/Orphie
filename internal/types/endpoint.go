@@ -11,6 +11,7 @@ type Endpoint struct {
 	Path          string `toml:"path,required"`
 	ParsedPath    string `toml:"-"`
 	BenchmarkPath string `toml:"benchmarkPath,omitempty"` //<- completly normal code
+	ReturningPath string `toml:"returningPath"`
 	//HTMLOverPure  bool      `tom:"HTMLOverPure,omitempty"` <- second-lasting weakness
 	Method        string    `toml:"method"`
 	Timeout       string    `toml:"timeout"`

@@ -3,6 +3,6 @@ services:
     image: ghcr.io/egot3/orphie:v0.0.1
     build: .
     ports:
-      - "307:307"
+      - "1130:1130"
     volumes:
       - ./config.toml:/config.toml:rw

@@ -1,0 +1,24 @@
+syntax = "proto3";
+
+option go_package = "github.com/Egot3/Orphie/pb";
+
+package orphieservice;
+
+import "google/protobuf/empty.proto";
+
+message OrphieData {
+    string path_variable = 1;
+    string data = 2;
+    string data_type = 3;
+}
+
+message OrphieDataResponse {
+    string path_variable = 1;
+    string data = 2;
+    string data_type = 3;
+}
+
+service OrphieService {
+    rpc GetOrphieData(google.protobuf.Empty)returns(stream OrphieDataResponse);
+    rpc Healthcheck(google.protobuf.Empty)returns(google.protobuf.Empty);
+}
