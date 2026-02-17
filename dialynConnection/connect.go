@@ -4,8 +4,8 @@ import (
 	"context"
 	"fmt"
 	"log"
-	"newsgetter/dialynConnection/handlers"
-	"newsgetter/dialynConnection/queues"
+	"orphie/dialynConnection/handlers"
+	"orphie/dialynConnection/queues"
 	"time"
 
 	amqp "github.com/rabbitmq/amqp091-go"

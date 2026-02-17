@@ -1,4 +1,4 @@
-module newsgetter
+module orphie
 
 go 1.25.7
 

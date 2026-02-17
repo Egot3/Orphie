@@ -2,7 +2,7 @@ package middleware
 
 import (
 	"net/http"
-	"newsgetter/internal/types"
+	"orphie/internal/types"
 )
 
 func UseTripper(client *types.Client, before func(*http.Request) error, after func(*http.Request, *http.Response, error) error) {

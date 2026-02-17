@@ -1,7 +1,7 @@
 package queues
 
 import (
-	"newsgetter/dialynConnection/handlers"
+	"orphie/dialynConnection/handlers"
 
 	amqp "github.com/rabbitmq/amqp091-go"
 )

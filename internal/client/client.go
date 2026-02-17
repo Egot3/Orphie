@@ -2,7 +2,7 @@ package client
 
 import (
 	"net/http"
-	"newsgetter/internal/types"
+	"orphie/internal/types"
 	"time"
 )
 

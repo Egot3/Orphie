@@ -4,9 +4,10 @@ import (
 	"io"
 	"log"
 	"net/http"
-	"newsgetter/internal/client"
-	"newsgetter/internal/middleware"
-	"newsgetter/internal/types"
+
+	"orphie/internal/client"
+	"orphie/internal/middleware"
+	"orphie/internal/types"
 	"time"
 )
 

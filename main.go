@@ -3,9 +3,9 @@ package main
 import (
 	"log"
 	_ "net/http/pprof"
-	diacon "newsgetter/dialynConnection"
-	"newsgetter/internal/manager"
-	"newsgetter/internal/types"
+	diacon "orphie/dialynConnection"
+	"orphie/internal/manager"
+	"orphie/internal/types"
 )
 
 func main() {

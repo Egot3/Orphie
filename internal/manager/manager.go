@@ -2,7 +2,7 @@ package manager
 
 import (
 	"log"
-	"newsgetter/internal/types"
+	"orphie/internal/types"
 	"sync/atomic"
 
 	"github.com/BurntSushi/toml"
