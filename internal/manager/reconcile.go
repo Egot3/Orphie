@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"log"
-	pb "newsgetter/contracts"
 	"newsgetter/internal/reqresp"
 	"newsgetter/internal/types"
 	"os"
@@ -18,13 +17,14 @@ type WorkerManager struct {
 	cancelFuncs map[string]context.CancelFunc
 	mu          sync.Mutex
 	cfgMgr      *Manager
-	dataChan    chan *pb.OrphieDataResponse
+	// ch          *amqp.Channel
 }
 
-func NewWorkerManager(cfgMgr *Manager, dataChan chan *pb.OrphieDataResponse) *WorkerManager {
+func NewWorkerManager(cfgMgr *Manager /*ch *amqp.Channel*/) *WorkerManager {
 	return &WorkerManager{
 		cancelFuncs: make(map[string]context.CancelFunc),
 		cfgMgr:      cfgMgr,
+		// ch:          ch,
 	}
 }
 
@@ -97,13 +97,13 @@ func (wm *WorkerManager) Reconcile(oldCfg, newCfg *types.ServiceStruct) {
 				log.Printf("BMRH: %v", ep.BenchmarkResponseHash)
 			}
 
-			go wm.runEndpoint(c, ep, wm.dataChan)
+			go wm.runEndpoint(c, ep)
 			log.Printf("Started endpoint %s %s", ep.Method, ep.ParsedPath)
 		}
 	}
 }
 
-func (wm *WorkerManager) runEndpoint(c context.Context, ep types.Endpoint, dataChan chan<- *pb.OrphieDataResponse) {
+func (wm *WorkerManager) runEndpoint(c context.Context, ep types.Endpoint) {
 	interval, err := time.ParseDuration(ep.Timeout)
 	if err != nil {
 		log.Printf("Endpoint %s: bad timeout %s, using 30m default",
@@ -136,17 +136,6 @@ func (wm *WorkerManager) runEndpoint(c context.Context, ep types.Endpoint, dataC
 			if len(ep.Params) > 0 &&
 				resp.StatusCode == 200 &&
 				respHash != ep.BenchmarkResponseHash {
-
-				if ep.ReturningPath != "" {
-					log.Printf("headers:%v", resp.Headers)
-					data := &pb.OrphieDataResponse{
-						PathVariable: ep.ReturningPath,
-						Data:         resp.Body,
-						DataType:     resp.Headers["Content-Type"][0], //weewooweewoo
-					}
-					log.Println(data)
-					dataChan <- data
-				}
 
 				value := int(ep.Params[ep.GetParsedVariables()[0]].(int64))
 				currConf := *wm.cfgMgr.Get()

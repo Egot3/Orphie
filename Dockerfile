@@ -18,6 +18,6 @@ RUN apk add --no-cache ca-certificates
 
 COPY --from=builder /Orphie/bin/app /app
 
-EXPOSE 307
+EXPOSE 1130
 
 ENTRYPOINT [ "/app" ]
