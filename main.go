@@ -1,17 +1,14 @@
 package main
 
 import (
-	"context"
 	"log"
 	_ "net/http/pprof"
 	"orphie/internal/manager"
 	"orphie/internal/types"
-	"time"
 
 	diacon "github.com/Egot3/Zhao"
 	"github.com/Egot3/Zhao/pub"
 	"github.com/Egot3/Zhao/queues"
-	"github.com/rabbitmq/amqp091-go"
 )
 
 func main() {
@@ -54,23 +51,12 @@ func main() {
 		NoWait:         false,
 		Args:           nil,
 	}
-	q, err := queues.NewQueue(publisher.Ch, qStruct)
+	_, err = queues.NewQueue(publisher.Ch, qStruct)
 	if err != nil {
 		log.Panicf("Couldn't create a queue: %v", err)
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-
-	err = publisher.Publish(ctx, "", q.Name, false, false, amqp091.Publishing{
-		ContentType: "text/plain",
-		Body:        []byte("DINGDINGDING"),
-	})
-	if err != nil {
-		log.Panicf("Couldn't publish: %v", err)
-	}
-
-	workerManager := manager.NewWorkerManager(mgr)
+	workerManager := manager.NewWorkerManager(mgr, publisher)
 	log.Println("Setting onReload")
 	mgr.OnReload = func(old, new *types.ServiceStruct) {
 		workerManager.Reconcile(old, new)

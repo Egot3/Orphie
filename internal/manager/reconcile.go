@@ -11,20 +11,22 @@ import (
 	"time"
 
 	"github.com/BurntSushi/toml"
+	"github.com/Egot3/Zhao/pub"
+	"github.com/rabbitmq/amqp091-go"
 )
 
 type WorkerManager struct {
 	cancelFuncs map[string]context.CancelFunc
 	mu          sync.Mutex
 	cfgMgr      *Manager
-	// ch          *amqp.Channel
+	publisher   *pub.Publisher
 }
 
-func NewWorkerManager(cfgMgr *Manager /*ch *amqp.Channel*/) *WorkerManager {
+func NewWorkerManager(cfgMgr *Manager, publisher *pub.Publisher) *WorkerManager {
 	return &WorkerManager{
 		cancelFuncs: make(map[string]context.CancelFunc),
 		cfgMgr:      cfgMgr,
-		// ch:          ch,
+		publisher:   publisher,
 	}
 }
 
@@ -133,21 +135,34 @@ func (wm *WorkerManager) runEndpoint(c context.Context, ep types.Endpoint) {
 			respHash := resp.Hash()
 			fmt.Printf("respHash: %v\n", respHash)
 
-			if len(ep.Params) > 0 &&
-				resp.StatusCode == 200 &&
-				respHash != ep.BenchmarkResponseHash {
+			if respHash != ep.BenchmarkResponseHash {
 
-				value := int(ep.Params[ep.GetParsedVariables()[0]].(int64))
-				currConf := *wm.cfgMgr.Get()
+				ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+				defer cancel()
 
-				err = types.SwitchParams(&currConf,
-					ep.Method+"|"+ep.ParsedPath,
-					ep.GetParsedVariables()[0],
-					value+1)
+				err = wm.publisher.Publish(ctx, "", "RINGRINGRING", false, false, amqp091.Publishing{
+					ContentType: "text/plain",
+					Body:        []byte("DINGDINGDING"),
+				})
+				if err != nil {
+					log.Panicf("Couldn't publish: %v", err)
+				}
 
-				f, _ := os.Create("config.toml")
-				toml.NewEncoder(f).Encode(currConf)
-				defer f.Close()
+				if len(ep.Params) > 0 &&
+					resp.StatusCode == 200 {
+
+					value := int(ep.Params[ep.GetParsedVariables()[0]].(int64))
+					currConf := *wm.cfgMgr.Get()
+
+					err = types.SwitchParams(&currConf,
+						ep.Method+"|"+ep.ParsedPath,
+						ep.GetParsedVariables()[0],
+						value+1)
+
+					f, _ := os.Create("config.toml")
+					toml.NewEncoder(f).Encode(currConf)
+					defer f.Close()
+				}
 			}
 		}
 	}
