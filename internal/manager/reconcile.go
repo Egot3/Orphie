@@ -2,8 +2,9 @@ package manager
 
 import (
 	"context"
-	"fmt"
+	"encoding/json"
 	"log"
+	mapconverter "orphie/internal/mapConverter"
 	"orphie/internal/reqresp"
 	"orphie/internal/types"
 	"os"
@@ -11,8 +12,12 @@ import (
 	"time"
 
 	"github.com/BurntSushi/toml"
+	pb "github.com/Egot3/Yidhari/contracts"
 	"github.com/Egot3/Zhao/pub"
+	"github.com/Egot3/Zhao/queues"
 	"github.com/rabbitmq/amqp091-go"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
 )
 
 type WorkerManager struct {
@@ -24,21 +29,25 @@ type WorkerManager struct {
 
 func NewWorkerManager(cfgMgr *Manager, publisher *pub.Publisher) *WorkerManager {
 	return &WorkerManager{
-		cancelFuncs: make(map[string]context.CancelFunc),
+		cancelFuncs: make(map[string]context.CancelFunc, 20),
 		cfgMgr:      cfgMgr,
 		publisher:   publisher,
 	}
 }
 
-func (wm *WorkerManager) Reconcile(oldCfg, newCfg *types.ServiceStruct) {
+func (wm *WorkerManager) Reconcile(oldCfg, newCfg *types.Config) {
 	log.Println("Started reconciling")
+	log.Printf("wm.publisher.Ch.IsClosed(): %v\n", wm.publisher.Ch.IsClosed())
+
 	wm.mu.Lock()
 	defer wm.mu.Unlock()
 
-	log.Println("amount of endpoints: ", len(newCfg.Endpoints))
-
 	newEndpoints := make(map[string]types.Endpoint)
-	for _, ep := range newCfg.Endpoints {
+	newQueues := make(map[string]types.Queue)
+	newExchanges := make(map[string]types.Exchange)
+	newBindings := make(map[string]types.Binding)
+
+	for _, ep := range newCfg.Service.Endpoints {
 		err := ep.ParsePathVariables()
 		if err != nil {
 			log.Printf("Couldn't parse path %v", ep.Path)
@@ -46,15 +55,89 @@ func (wm *WorkerManager) Reconcile(oldCfg, newCfg *types.ServiceStruct) {
 		key := ep.ParsedPath + "|" + ep.Method
 		newEndpoints[key] = ep
 	}
+	for _, q := range newCfg.RabbitMQ.Queues {
+		newQueues[q.Name] = q
+	}
+	for _, e := range newCfg.RabbitMQ.Exchanges {
+		newExchanges[e.Name] = e
+	}
+	for _, b := range newCfg.RabbitMQ.Bindings {
+		newBindings[b.Exchange+"|"+b.QueueName+"|"+b.RoutingKey] = b
+	}
 
+	oldQueues := make(map[string]types.Queue)
+	oldExchanges := make(map[string]types.Exchange)
+	oldBindings := make(map[string]types.Binding)
 	oldEndpoints := make(map[string]types.Endpoint)
+
 	if oldCfg != nil {
-		for _, ep := range oldCfg.Endpoints {
+		for _, ep := range oldCfg.Service.Endpoints {
 			key := ep.ParsedPath + "|" + ep.Method
 			oldEndpoints[key] = ep
 		}
+		for _, q := range newCfg.RabbitMQ.Queues {
+			oldQueues[q.Name] = q
+		}
+		for _, e := range newCfg.RabbitMQ.Exchanges {
+			oldExchanges[e.Name] = e
+		}
+		for _, b := range newCfg.RabbitMQ.Bindings {
+			oldBindings[b.Exchange+"|"+b.QueueName+"|"+b.RoutingKey] = b
+		}
 	}
 
+	for _, self := range oldCfg.RabbitMQ.Queues {
+		_, existsInNew := newQueues[self.Name]
+		newQ := self.Canonical()
+
+		if !existsInNew {
+			err := queues.DeleteQueue(wm.publisher.Ch, newQ)
+			if err != nil {
+				log.Println(err)
+				continue
+			}
+			delete(newQueues, self.Name)
+			continue
+		}
+
+		oldQ := oldQueues[self.Name]
+
+		if !self.Enabled {
+			err := queues.DeleteQueue(wm.publisher.Ch, newQ)
+			if err != nil {
+				log.Println(err)
+				continue
+			}
+			delete(newQueues, self.Name)
+			continue
+		}
+		if oldQ.Name == self.Name && !types.Equal(oldQ, self) {
+			err := queues.DeleteQueue(wm.publisher.Ch, newQ)
+			if err != nil {
+				log.Println(err)
+				continue
+			}
+			delete(newQueues, self.Name)
+			continue
+		}
+	}
+	for _, self := range oldCfg.RabbitMQ.Bindings {
+		name := self.Exchange + "|" + self.QueueName + "|" + self.RoutingKey
+		_, existsInNew := newBindings[name]
+		newB := self.Canonical(newQueues[self.QueueName].Canonical(), newExchanges[self.Exchange].Canonical())
+
+		if !existsInNew {
+			wm.publisher.Unbind(&newB)
+			delete(newBindings, name)
+			continue
+		}
+
+		if !self.Enabled {
+			wm.publisher.Unbind(&newB)
+			delete(newBindings, name)
+			continue
+		}
+	}
 	for key, cancel := range wm.cancelFuncs {
 		_, existsInNew := newEndpoints[key]
 		if !existsInNew {
@@ -82,6 +165,144 @@ func (wm *WorkerManager) Reconcile(oldCfg, newCfg *types.ServiceStruct) {
 		}
 	}
 
+	log.Printf("started creating wm.publisher.Ch.IsClosed(): %v\n", wm.publisher.Ch.IsClosed())
+
+	r, _ := reqresp.MakeRequest("GET", "http://localhost:15672/api/queues/%2F",
+		map[string]string{"username": "guest", "password": "guest"})
+	var runQ []types.Queue
+	_ = json.Unmarshal(r.Body, &runQ)
+	for key, q := range newQueues {
+		if !q.Enabled {
+			continue
+		}
+
+		running := false
+		for _, queue := range runQ {
+			if queue.Name == key {
+				running = true
+				break
+			}
+		}
+		if !running {
+			target := "localhost:9130"
+			log.Printf("Dialing %v", target)
+			conn, err := grpc.NewClient(target, grpc.WithTransportCredentials(insecure.NewCredentials()))
+			if err != nil {
+				log.Printf("Failed to make a grpc client!: %v", err)
+				continue
+			}
+			defer conn.Close()
+
+			client := pb.NewQueueServiceClient(conn)
+
+			args, err := mapconverter.ConvertMap(q.Args)
+			if err != nil {
+				log.Printf("Unable to serialize a map: %v", err)
+			}
+
+			resp, err := client.CreateQueue(context.Background(), &pb.Queue{
+				Name:         q.Name,
+				Durable:      &q.Durable,
+				DeleteUnused: &q.DeleteOnUnused,
+				Exclusive:    &q.Exclusive,
+				NoWait:       &q.NoWait,
+				Args:         args,
+			})
+			if err != nil {
+				log.Printf("Error: %v", err)
+			}
+			log.Println(*resp.Error)
+		}
+	}
+
+	r, _ = reqresp.MakeRequest("GET", "http://localhost:15672/api/exchanges/%2F",
+		map[string]string{"username": "guest", "password": "guest"})
+	var runE []types.Exchange
+	_ = json.Unmarshal(r.Body, &runE)
+	for key, e := range newExchanges {
+		if !e.Enabled {
+			continue
+		}
+
+		running := false
+		for _, exchange := range runE {
+			if exchange.Name == key {
+				running = true
+				break
+			}
+		}
+		if !running {
+			conn, err := grpc.NewClient("localhost:9130", grpc.WithTransportCredentials(insecure.NewCredentials()))
+			if err != nil {
+				log.Printf("Failed to make a grpc client!: %v", err)
+				continue
+			}
+			defer conn.Close()
+
+			client := pb.NewExchangeServiceClient(conn)
+
+			args, err := mapconverter.ConvertMap(e.Args)
+			if err != nil {
+				log.Printf("Unable to serialize a map: %v", err)
+			}
+
+			resp, err := client.CreateExchange(context.Background(), &pb.Exchange{
+				Name:        e.Name,
+				Type:        e.Type,
+				Durable:     &e.Durable,
+				AutoDeleted: &e.AutoDeleted,
+				Internal:    &e.AutoDeleted,
+				NoWait:      &e.NoWait,
+				Args:        args,
+			})
+			if err != nil {
+				log.Printf("Error: %v", err)
+			}
+			log.Println(resp.Error)
+		}
+	}
+
+	r, _ = reqresp.MakeRequest("GET", "http://localhost:15672/api/bindings/%2F",
+		map[string]string{"username": "guest", "password": "guest"})
+	var runB []types.Binding
+	_ = json.Unmarshal(r.Body, &runB)
+	for key, b := range newBindings {
+		if !b.Enabled {
+			continue
+		}
+
+		running := false
+		for _, binding := range runB {
+			if binding.Exchange+"|"+binding.QueueName+"|"+binding.RoutingKey == key {
+				running = true
+				break
+			}
+		}
+		if !running {
+			target := "localhost:9130"
+			log.Printf("Dialing %v", target)
+			conn, err := grpc.NewClient(target, grpc.WithTransportCredentials(insecure.NewCredentials()))
+			if err != nil {
+				log.Printf("Failed to make a grpc client!: %v", err)
+				continue
+			}
+			defer conn.Close()
+
+			client := pb.NewBindingServiceClient(conn)
+			resp, err := client.Bind(context.Background(), &pb.Binding{
+				Queue:      b.QueueName,
+				Exchange:   b.Exchange,
+				RoutingKey: b.RoutingKey,
+			})
+			if err != nil {
+				log.Printf("Error: %v", err)
+			}
+			log.Println(resp.Error)
+		}
+	}
+
+	log.Printf("created all queues etc. wm.publisher.Ch.IsClosed(): %v\n", wm.publisher.Ch.IsClosed())
+
 	for key, ep := range newEndpoints {
 		if !ep.Enabled {
 			continue
@@ -91,7 +312,7 @@ func (wm *WorkerManager) Reconcile(oldCfg, newCfg *types.ServiceStruct) {
 			wm.cancelFuncs[key] = cancel
 
 			if ep.BenchmarkPath != "" {
-				benchmarkResp, err := reqresp.MakeRequest(ep.Method, ep.BenchmarkPath)
+				benchmarkResp, err := reqresp.MakeRequest(ep.Method, ep.BenchmarkPath, nil)
 				if err != nil {
 					log.Printf("Error in benchmark request: %v", err)
 				}
@@ -124,7 +345,7 @@ func (wm *WorkerManager) runEndpoint(c context.Context, ep types.Endpoint) {
 		case <-ticker.C:
 			log.Println("making a request to ", ep.ParsedPath)
 
-			resp, err := reqresp.MakeRequest(ep.Method, ep.ParsedPath)
+			resp, err := reqresp.MakeRequest(ep.Method, ep.ParsedPath, nil)
 			if err != nil {
 				log.Printf("Error in request %v %v : %v",
 					ep.Method, ep.ParsedPath, err)
@@ -133,30 +354,38 @@ func (wm *WorkerManager) runEndpoint(c context.Context, ep types.Endpoint) {
 			// }
 
 			respHash := resp.Hash()
-			fmt.Printf("respHash: %v\n", respHash)
+			log.Printf("respHash: %v\nbenchHash: %v", respHash, ep.BenchmarkResponseHash)
 
 			if respHash != ep.BenchmarkResponseHash {
 
 				ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 				defer cancel()
 
-				err = wm.publisher.Publish(ctx, "", "RINGRINGRING", false, false, amqp091.Publishing{
-					ContentType: "text/plain",
-					Body:        []byte("DINGDINGDING"),
-				})
+				pack := pub.PublishingPackage{
+					Exchange:  ep.Exchange,
+					Key:       ep.RoutingKey,
+					Mandatory: false,
+					Immediate: false,
+					Message: amqp091.Publishing{
+						ContentType: "text/plain",
+						Body:        resp.Body,
+					},
+				}
+				err = wm.publisher.Publish(ctx, pack)
 				if err != nil {
 					log.Panicf("Couldn't publish: %v", err)
 				}
+				log.Printf("sent %#v", pack)
 
 				if len(ep.Params) > 0 &&
 					resp.StatusCode == 200 {
 
-					value := int(ep.Params[ep.GetParsedVariables()[0]].(int64))
+					value := int(ep.Params[ep.ParsedVariables()[0]].(int64))
 					currConf := *wm.cfgMgr.Get()
 
 					err = types.SwitchParams(&currConf,
 						ep.Method+"|"+ep.ParsedPath,
-						ep.GetParsedVariables()[0],
+						ep.ParsedVariables()[0],
 						value+1)
 
 					f, _ := os.Create("config.toml")

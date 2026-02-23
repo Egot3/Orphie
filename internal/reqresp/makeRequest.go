@@ -11,13 +11,15 @@ import (
 	"time"
 )
 
-func MakeRequest(method, path string) (*types.Response, error) {
+func MakeRequest(method, path string, auth map[string]string) (*types.Response, error) {
 	client := client.NewClient(&http.Client{Timeout: 10 * time.Second})
 
 	before, after := middleware.TraceTripperMiddleware()
 	middleware.UseTripper(client, before, after)
 
 	req, _ := http.NewRequest(method, path, nil)
+
+	req.SetBasicAuth(auth["username"], auth["password"])
 
 	req.Header.Set("Cache-Control", "no-cache, no-store, must-revalidate")
 	req.Header.Set("Pragma", "no-cache")
@@ -36,12 +38,10 @@ func MakeRequest(method, path string) (*types.Response, error) {
 		log.Printf("Body parsing error: %v", err)
 	}
 
-	bodyString := string(bodyBytes)
-
 	//log.Printf("%v\n\n%v", bodyString, resp.Header)
 
 	return &types.Response{
-		Body:       bodyString,
+		Body:       bodyBytes,
 		Method:     resp.Request.Method,
 		Path:       resp.Request.URL.String(),
 		StatusCode: resp.StatusCode,

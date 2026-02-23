@@ -9,12 +9,12 @@ type Response struct {
 	Method     string
 	Headers    map[string][]string
 	StatusCode int
-	Body       string
+	Body       []byte
 }
 
 func (r Response) Hash() [32]uint8 {
 
-	hash := sha256.Sum256([]byte(r.Body + r.Method))
+	hash := sha256.Sum256(append([]byte(r.Method), r.Body...))
 
 	return hash
 }

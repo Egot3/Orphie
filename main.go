@@ -8,7 +8,6 @@ import (
 
 	diacon "github.com/Egot3/Zhao"
 	"github.com/Egot3/Zhao/pub"
-	"github.com/Egot3/Zhao/queues"
 )
 
 func main() {
@@ -29,7 +28,7 @@ func main() {
 
 	cfg := diacon.RabbitMQConfiguration{
 		URL:  "amqp://guest:guest@localhost",
-		Port: "1130",
+		Port: "380",
 	}
 	conn, err := diacon.Connect(cfg)
 	if err != nil {
@@ -42,28 +41,20 @@ func main() {
 		log.Panicf("Couldn't create a Publisher: %v", err)
 	}
 	defer publisher.Close()
-
-	qStruct := queues.QueueStruct{
-		Name:           "RINGRINGRING",
-		Durable:        false,
-		DeleteOnUnused: false,
-		Exclusive:      false,
-		NoWait:         false,
-		Args:           nil,
-	}
-	_, err = queues.NewQueue(publisher.Ch, qStruct)
-	if err != nil {
-		log.Panicf("Couldn't create a queue: %v", err)
-	}
+	log.Printf("publisher.Ch.IsClosed()@2: %v\n", publisher.Ch.IsClosed())
 
 	workerManager := manager.NewWorkerManager(mgr, publisher)
 	log.Println("Setting onReload")
-	mgr.OnReload = func(old, new *types.ServiceStruct) {
+	mgr.OnReload = func(old, new *types.Config) {
 		workerManager.Reconcile(old, new)
 	}
 	log.Println("Set onReload")
+	log.Printf("publisher.Ch.IsClosed()@3: %v\n", publisher.Ch.IsClosed())
 
 	mgr.Load()
+	log.Printf("publisher.Ch.IsClosed()@4: %v\n", publisher.Ch.IsClosed())
 
 	select {}
+
+	log.Println("last line in main")
 }

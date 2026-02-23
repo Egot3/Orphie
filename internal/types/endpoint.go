@@ -12,6 +12,9 @@ type Endpoint struct {
 	ParsedPath    string `toml:"-"`
 	BenchmarkPath string `toml:"benchmarkPath,omitempty"` //<- completly normal code
 	ReturningPath string `toml:"returningPath"`
+
+	Exchange   string `toml:"exchange"`
+	RoutingKey string `toml:"routing_key"`
 	//HTMLOverPure  bool      `tom:"HTMLOverPure,omitempty"` <- second-lasting weakness
 	Method        string    `toml:"method"`
 	Timeout       string    `toml:"timeout"`
@@ -56,7 +59,7 @@ func (e *Endpoint) ParsePathVariables() error {
 	return nil
 }
 
-func (e Endpoint) GetParsedVariables() []string {
+func (e Endpoint) ParsedVariables() []string {
 	var vars []string
 
 	separators := map[rune]bool{

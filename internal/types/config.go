@@ -7,7 +7,8 @@ import (
 )
 
 type Config struct {
-	Service ServiceStruct `toml:"service"`
+	Service  ServiceStruct `toml:"service"`
+	RabbitMQ RabbitMQ      `toml:"rabbitmq"`
 }
 
 func (cfg Config) GetSeq() iter.Seq[*Endpoint] {

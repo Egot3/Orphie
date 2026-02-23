@@ -14,10 +14,10 @@ type Manager struct {
 	path     string
 	watcher  *fsnotify.Watcher
 	done     chan struct{}
-	OnReload func(old, new *types.ServiceStruct)
+	OnReload func(old, new *types.Config)
 }
 
-func NewManager(path string, onReload func(old, new *types.ServiceStruct)) (*Manager, error) {
+func NewManager(path string, onReload func(old, new *types.Config)) (*Manager, error) {
 	watcher, err := fsnotify.NewWatcher()
 	if err != nil {
 		return nil, err
@@ -71,7 +71,7 @@ func (m *Manager) Load() error {
 	m.config.Store(&cfg)
 
 	if m.OnReload != nil {
-		m.OnReload(&oldCfg.Service, &cfg.Service)
+		m.OnReload(oldCfg, &cfg)
 	}
 	return nil
 }
