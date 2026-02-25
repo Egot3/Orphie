@@ -3,6 +3,7 @@ package manager
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"log"
 	mapconverter "orphie/internal/mapConverter"
 	"orphie/internal/types"
@@ -169,8 +170,11 @@ func (wm *WorkerManager) Reconcile(oldCfg, newCfg *types.Config) {
 
 	log.Printf("started creating wm.publisher.Ch.IsClosed(): %v\n", wm.publisher.Ch.IsClosed())
 
-	r, _ := wm.client.MakeRequest(context.TODO(), "GET", "http://localhost:15672/api/queues/%2F",
+	r, err := wm.client.MakeRequest(context.TODO(), "GET", fmt.Sprintf("http://%v:15672/api/queues/%v", os.Getenv("RABBIT_HOST"), "%2F"),
 		map[string]string{"username": "guest", "password": "guest"})
+	if err != nil {
+		log.Printf("bad news with queues: %v", err)
+	}
 	var runQ []types.Queue
 	_ = json.Unmarshal(r.Body, &runQ)
 	for key, q := range newQueues {
@@ -217,8 +221,11 @@ func (wm *WorkerManager) Reconcile(oldCfg, newCfg *types.Config) {
 		}
 	}
 
-	r, _ = wm.client.MakeRequest(context.TODO(), "GET", "http://localhost:15672/api/exchanges/%2F",
+	r, err = wm.client.MakeRequest(context.TODO(), "GET", fmt.Sprintf("http://%v:15672/api/exchanges/%v", os.Getenv("RABBIT_HOST"), "%2F"),
 		map[string]string{"username": "guest", "password": "guest"})
+	if err != nil {
+		log.Printf("Problem in exchange: %v", err)
+	}
 	var runE []types.Exchange
 	_ = json.Unmarshal(r.Body, &runE)
 	for key, e := range newExchanges {
@@ -264,7 +271,7 @@ func (wm *WorkerManager) Reconcile(oldCfg, newCfg *types.Config) {
 		}
 	}
 
-	r, _ = wm.client.MakeRequest(context.TODO(), "GET", "http://localhost:15672/api/bindings/%2F",
+	r, _ = wm.client.MakeRequest(context.TODO(), "GET", fmt.Sprintf("http://%v:15672/api/bindings/%v", os.Getenv("RABBIT_HOST"), "%2F"),
 		map[string]string{"username": "guest", "password": "guest"})
 	var runB []types.Binding
 	_ = json.Unmarshal(r.Body, &runB)

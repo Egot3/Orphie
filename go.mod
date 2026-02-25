@@ -8,6 +8,7 @@ require (
 	github.com/Egot3/Yidhari v0.0.3
 	github.com/Egot3/Zhao v0.0.2
 	github.com/fsnotify/fsnotify v1.9.0
+	github.com/joho/godotenv v1.5.1
 	github.com/rabbitmq/amqp091-go v1.10.0
 	google.golang.org/grpc v1.79.1
 	google.golang.org/protobuf v1.36.11

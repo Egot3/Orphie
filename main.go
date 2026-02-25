@@ -12,9 +12,11 @@ import (
 	banye "github.com/Egot3/Banye"
 	diacon "github.com/Egot3/Zhao"
 	"github.com/Egot3/Zhao/pub"
+	"github.com/joho/godotenv"
 )
 
 func main() {
+	godotenv.Load()
 
 	const configPath = "config.toml"
 
