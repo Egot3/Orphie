@@ -7,6 +7,7 @@ import (
 	"orphie/internal/manager"
 	"orphie/internal/middleware"
 	"orphie/internal/types"
+	"os"
 
 	banye "github.com/Egot3/Banye"
 	diacon "github.com/Egot3/Zhao"
@@ -28,8 +29,8 @@ func main() {
 	mgr.Load()
 
 	cfg := diacon.RabbitMQConfiguration{
-		URL:  "amqp://guest:guest@localhost",
-		Port: "380",
+		URL:  os.Getenv("RABBIT_URL"),
+		Port: os.Getenv("RABBIT_PORT"),
 	}
 	conn, err := diacon.Connect(cfg)
 	if err != nil {
