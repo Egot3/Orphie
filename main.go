@@ -2,10 +2,13 @@ package main
 
 import (
 	"log"
+	"net/http"
 	_ "net/http/pprof"
 	"orphie/internal/manager"
+	"orphie/internal/middleware"
 	"orphie/internal/types"
 
+	banye "github.com/Egot3/Banye"
 	diacon "github.com/Egot3/Zhao"
 	"github.com/Egot3/Zhao/pub"
 )
@@ -24,8 +27,6 @@ func main() {
 
 	mgr.Load()
 
-	//go diacon.Connect(mgr.Get().Service.RabbitMQPort)
-
 	cfg := diacon.RabbitMQConfiguration{
 		URL:  "amqp://guest:guest@localhost",
 		Port: "380",
@@ -41,20 +42,18 @@ func main() {
 		log.Panicf("Couldn't create a Publisher: %v", err)
 	}
 	defer publisher.Close()
-	log.Printf("publisher.Ch.IsClosed()@2: %v\n", publisher.Ch.IsClosed())
 
-	workerManager := manager.NewWorkerManager(mgr, publisher)
+	before, after := middleware.TraceTripperMiddleware()
+	client := banye.NewClient(http.DefaultClient)
+	client.UseTripper(before, after)
+
+	workerManager := manager.NewWorkerManager(mgr, client, publisher)
 	log.Println("Setting onReload")
 	mgr.OnReload = func(old, new *types.Config) {
 		workerManager.Reconcile(old, new)
 	}
-	log.Println("Set onReload")
-	log.Printf("publisher.Ch.IsClosed()@3: %v\n", publisher.Ch.IsClosed())
 
 	mgr.Load()
-	log.Printf("publisher.Ch.IsClosed()@4: %v\n", publisher.Ch.IsClosed())
 
 	select {}
-
-	log.Println("last line in main")
 }

@@ -1,5 +1,9 @@
 github.com/BurntSushi/toml v1.6.0 h1:dRaEfpa2VI55EwlIW72hMRHdWouJeRF7TPYhI+AUQjk=
 github.com/BurntSushi/toml v1.6.0/go.mod h1:ukJfTF/6rtPPRCnwkur4qwRxa8vTRFBF0uk2lLoLwho=
+github.com/Egot3/Banye v0.0.0-20260224192042-ad32674e12a6 h1:Ve7Kzj5NaOvixMB64uwGHau0oz81/UL2HiahXu3iqs4=
+github.com/Egot3/Banye v0.0.0-20260224192042-ad32674e12a6/go.mod h1:eYSoAnQua6qOcL+nHaM7cM4tSnPVui6bKZaPA0VaSas=
+github.com/Egot3/Banye v0.0.1 h1:FCXlRg/30feUwfl5iT0yfezdHi7PfUTC2ptNINNs2jE=
+github.com/Egot3/Banye v0.0.1/go.mod h1:eYSoAnQua6qOcL+nHaM7cM4tSnPVui6bKZaPA0VaSas=
 github.com/Egot3/Yidhari v0.0.3 h1:+wGR7KwHi7SrGKWhAVboRCYztSf8j/eP2HQeQ7pVuQQ=
 github.com/Egot3/Yidhari v0.0.3/go.mod h1:WC4TUEHF2Ulawm3QbGJcAb2M1Lu7JnauerObDY9BD/M=
 github.com/Egot3/Zhao v0.0.2 h1:QUh7V3gSjX7DX26eKjW79TBzDX3u1dAB4OuUboO8050=

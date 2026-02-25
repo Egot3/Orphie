@@ -5,17 +5,17 @@ import (
 	"encoding/json"
 	"log"
 	mapconverter "orphie/internal/mapConverter"
-	"orphie/internal/reqresp"
 	"orphie/internal/types"
 	"os"
 	"sync"
 	"time"
 
 	"github.com/BurntSushi/toml"
+	banye "github.com/Egot3/Banye"
 	pb "github.com/Egot3/Yidhari/contracts"
 	"github.com/Egot3/Zhao/pub"
 	"github.com/Egot3/Zhao/queues"
-	"github.com/rabbitmq/amqp091-go"
+	amqp "github.com/rabbitmq/amqp091-go"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 )
@@ -24,13 +24,15 @@ type WorkerManager struct {
 	cancelFuncs map[string]context.CancelFunc
 	mu          sync.Mutex
 	cfgMgr      *Manager
+	client      *banye.Client
 	publisher   *pub.Publisher
 }
 
-func NewWorkerManager(cfgMgr *Manager, publisher *pub.Publisher) *WorkerManager {
+func NewWorkerManager(cfgMgr *Manager, client *banye.Client, publisher *pub.Publisher) *WorkerManager {
 	return &WorkerManager{
 		cancelFuncs: make(map[string]context.CancelFunc, 20),
 		cfgMgr:      cfgMgr,
+		client:      client,
 		publisher:   publisher,
 	}
 }
@@ -167,7 +169,7 @@ func (wm *WorkerManager) Reconcile(oldCfg, newCfg *types.Config) {
 
 	log.Printf("started creating wm.publisher.Ch.IsClosed(): %v\n", wm.publisher.Ch.IsClosed())
 
-	r, _ := reqresp.MakeRequest("GET", "http://localhost:15672/api/queues/%2F",
+	r, _ := wm.client.MakeRequest(context.TODO(), "GET", "http://localhost:15672/api/queues/%2F",
 		map[string]string{"username": "guest", "password": "guest"})
 	var runQ []types.Queue
 	_ = json.Unmarshal(r.Body, &runQ)
@@ -215,7 +217,7 @@ func (wm *WorkerManager) Reconcile(oldCfg, newCfg *types.Config) {
 		}
 	}
 
-	r, _ = reqresp.MakeRequest("GET", "http://localhost:15672/api/exchanges/%2F",
+	r, _ = wm.client.MakeRequest(context.TODO(), "GET", "http://localhost:15672/api/exchanges/%2F",
 		map[string]string{"username": "guest", "password": "guest"})
 	var runE []types.Exchange
 	_ = json.Unmarshal(r.Body, &runE)
@@ -262,7 +264,7 @@ func (wm *WorkerManager) Reconcile(oldCfg, newCfg *types.Config) {
 		}
 	}
 
-	r, _ = reqresp.MakeRequest("GET", "http://localhost:15672/api/bindings/%2F",
+	r, _ = wm.client.MakeRequest(context.TODO(), "GET", "http://localhost:15672/api/bindings/%2F",
 		map[string]string{"username": "guest", "password": "guest"})
 	var runB []types.Binding
 	_ = json.Unmarshal(r.Body, &runB)
@@ -312,7 +314,7 @@ func (wm *WorkerManager) Reconcile(oldCfg, newCfg *types.Config) {
 			wm.cancelFuncs[key] = cancel
 
 			if ep.BenchmarkPath != "" {
-				benchmarkResp, err := reqresp.MakeRequest(ep.Method, ep.BenchmarkPath, nil)
+				benchmarkResp, err := wm.client.MakeRequest(context.TODO(), ep.Method, ep.BenchmarkPath, nil)
 				if err != nil {
 					log.Printf("Error in benchmark request: %v", err)
 				}
@@ -345,7 +347,7 @@ func (wm *WorkerManager) runEndpoint(c context.Context, ep types.Endpoint) {
 		case <-ticker.C:
 			log.Println("making a request to ", ep.ParsedPath)
 
-			resp, err := reqresp.MakeRequest(ep.Method, ep.ParsedPath, nil)
+			resp, err := wm.client.MakeRequest(context.TODO(), ep.Method, ep.ParsedPath, nil)
 			if err != nil {
 				log.Printf("Error in request %v %v : %v",
 					ep.Method, ep.ParsedPath, err)
@@ -366,7 +368,7 @@ func (wm *WorkerManager) runEndpoint(c context.Context, ep types.Endpoint) {
 					Key:       ep.RoutingKey,
 					Mandatory: false,
 					Immediate: false,
-					Message: amqp091.Publishing{
+					Message: amqp.Publishing{
 						ContentType: "text/plain",
 						Body:        resp.Body,
 					},
@@ -378,7 +380,7 @@ func (wm *WorkerManager) runEndpoint(c context.Context, ep types.Endpoint) {
 				log.Printf("sent %#v", pack)
 
 				if len(ep.Params) > 0 &&
-					resp.StatusCode == 200 {
+					resp.StatusCode >= 200 && resp.StatusCode < 300 {
 
 					value := int(ep.Params[ep.ParsedVariables()[0]].(int64))
 					currConf := *wm.cfgMgr.Get()

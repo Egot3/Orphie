@@ -13,6 +13,7 @@ require (
 )
 
 require (
+	github.com/Egot3/Banye v0.0.1 // indirect
 	golang.org/x/net v0.48.0 // indirect
 	golang.org/x/sys v0.39.0 // indirect
 	golang.org/x/text v0.32.0 // indirect
