@@ -190,7 +190,7 @@ func (wm *WorkerManager) Reconcile(oldCfg, newCfg *types.Config) {
 			}
 		}
 		if !running {
-			target := "localhost:9130"
+			target := fmt.Sprintf("%v:%v", os.Getenv("YIDHARI_HOST"), os.Getenv("YIDHARI_PORT"))
 			log.Printf("Dialing %v", target)
 			conn, err := grpc.NewClient(target, grpc.WithTransportCredentials(insecure.NewCredentials()))
 			if err != nil {
@@ -241,7 +241,7 @@ func (wm *WorkerManager) Reconcile(oldCfg, newCfg *types.Config) {
 			}
 		}
 		if !running {
-			conn, err := grpc.NewClient("localhost:9130", grpc.WithTransportCredentials(insecure.NewCredentials()))
+			conn, err := grpc.NewClient(fmt.Sprintf("%v:%v", os.Getenv("YIDHARI_HOST"), os.Getenv("YIDHARI_PORT")), grpc.WithTransportCredentials(insecure.NewCredentials()))
 			if err != nil {
 				log.Printf("Failed to make a grpc client!: %v", err)
 				continue
@@ -288,7 +288,7 @@ func (wm *WorkerManager) Reconcile(oldCfg, newCfg *types.Config) {
 			}
 		}
 		if !running {
-			target := "localhost:9130"
+			target := fmt.Sprintf("%v:%v", os.Getenv("YIDHARI_HOST"), os.Getenv("YIDHARI_PORT"))
 			log.Printf("Dialing %v", target)
 			conn, err := grpc.NewClient(target, grpc.WithTransportCredentials(insecure.NewCredentials()))
 			if err != nil {
