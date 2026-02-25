@@ -4,6 +4,7 @@ go 1.26.0
 
 require (
 	github.com/BurntSushi/toml v1.6.0
+	github.com/Egot3/Banye v0.0.1
 	github.com/Egot3/Yidhari v0.0.3
 	github.com/Egot3/Zhao v0.0.2
 	github.com/fsnotify/fsnotify v1.9.0
@@ -13,7 +14,6 @@ require (
 )
 
 require (
-	github.com/Egot3/Banye v0.0.1 // indirect
 	golang.org/x/net v0.48.0 // indirect
 	golang.org/x/sys v0.39.0 // indirect
 	golang.org/x/text v0.32.0 // indirect

@@ -4,3 +4,4 @@ Dockerfile
 .dockerignore
 *.md
 tmp/
+.env
