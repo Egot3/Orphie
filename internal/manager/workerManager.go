@@ -170,7 +170,8 @@ func (wm *WorkerManager) Reconcile(oldCfg, newCfg *types.Config) {
 
 	log.Printf("started creating wm.publisher.Ch.IsClosed(): %v\n", wm.publisher.Ch.IsClosed())
 
-	r, err := wm.client.MakeRequest(context.TODO(), "GET", fmt.Sprintf("http://%v:15672/api/queues/%v", os.Getenv("RABBIT_HOST"), "%2F"),
+	r, err := wm.client.MakeRequest(context.TODO(), "GET",
+		fmt.Sprintf("http://%v:15672/api/queues/%v", os.Getenv("RABBIT_HOST"), "%2F"),
 		map[string]string{"username": "guest", "password": "guest"})
 	if err != nil {
 		log.Printf("bad news with queues: %v", err)
@@ -221,7 +222,8 @@ func (wm *WorkerManager) Reconcile(oldCfg, newCfg *types.Config) {
 		}
 	}
 
-	r, err = wm.client.MakeRequest(context.TODO(), "GET", fmt.Sprintf("http://%v:15672/api/exchanges/%v", os.Getenv("RABBIT_HOST"), "%2F"),
+	r, err = wm.client.MakeRequest(context.TODO(), "GET",
+		fmt.Sprintf("http://%v:15672/api/exchanges/%v", os.Getenv("RABBIT_HOST"), "%2F"),
 		map[string]string{"username": "guest", "password": "guest"})
 	if err != nil {
 		log.Printf("Problem in exchange: %v", err)
@@ -271,7 +273,8 @@ func (wm *WorkerManager) Reconcile(oldCfg, newCfg *types.Config) {
 		}
 	}
 
-	r, _ = wm.client.MakeRequest(context.TODO(), "GET", fmt.Sprintf("http://%v:15672/api/bindings/%v", os.Getenv("RABBIT_HOST"), "%2F"),
+	r, _ = wm.client.MakeRequest(context.TODO(), "GET",
+		fmt.Sprintf("http://%v:15672/api/bindings/%v", os.Getenv("RABBIT_HOST"), "%2F"),
 		map[string]string{"username": "guest", "password": "guest"})
 	var runB []types.Binding
 	_ = json.Unmarshal(r.Body, &runB)
@@ -290,7 +293,8 @@ func (wm *WorkerManager) Reconcile(oldCfg, newCfg *types.Config) {
 		if !running {
 			target := fmt.Sprintf("%v:%v", os.Getenv("YIDHARI_HOST"), os.Getenv("YIDHARI_PORT"))
 			log.Printf("Dialing %v", target)
-			conn, err := grpc.NewClient(target, grpc.WithTransportCredentials(insecure.NewCredentials()))
+			conn, err := grpc.NewClient(target,
+				grpc.WithTransportCredentials(insecure.NewCredentials()))
 			if err != nil {
 				log.Printf("Failed to make a grpc client!: %v", err)
 				continue
@@ -310,7 +314,8 @@ func (wm *WorkerManager) Reconcile(oldCfg, newCfg *types.Config) {
 		}
 	}
 
-	log.Printf("created all queues etc. wm.publisher.Ch.IsClosed(): %v\n", wm.publisher.Ch.IsClosed())
+	log.Printf("created all queues etc. wm.publisher.Ch.IsClosed(): %v\n",
+		wm.publisher.Ch.IsClosed())
 
 	for key, ep := range newEndpoints {
 		if !ep.Enabled {
@@ -321,7 +326,8 @@ func (wm *WorkerManager) Reconcile(oldCfg, newCfg *types.Config) {
 			wm.cancelFuncs[key] = cancel
 
 			if ep.BenchmarkPath != "" {
-				benchmarkResp, err := wm.client.MakeRequest(context.TODO(), ep.Method, ep.BenchmarkPath, nil)
+				benchmarkResp, err := wm.client.MakeRequest(context.TODO(),
+					ep.Method, ep.BenchmarkPath, nil)
 				if err != nil {
 					log.Printf("Error in benchmark request: %v", err)
 				}
